@@ -1,5 +1,11 @@
 # GBD Migration Project
 
+There are 3 files in this repository:
+
+1. **Content Migration Notebook**. A tool to perform AGOL to AGOL transfers on single items in an organization.
+2. **Content Report Notebook**. A tool to generate a report of all content owned by a user, alongside essential information associated with the item.
+3. **Catalog**. A functional csv essential to use with the Content Migration notebook. Records transfers in real time for administrative logging purposes. 
+
 ## Content Migration Notebook
 
 This notebook is used to do AGOL to AGOL transfers, designed to handle one item at a time. In AGOL to AGOL transfers, we refer to the org with the original content as the **origin portal**. The AGOL where we want to transfer our items to is the **destination portal.**
