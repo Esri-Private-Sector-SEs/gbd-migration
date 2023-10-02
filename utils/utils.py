@@ -1,4 +1,17 @@
+import time, random
+
+def chunks(lst, n):
+    """
+    Divides a lst into chunks of size n.
+    """
+    
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+        
 def flatten_data(y):
+    """
+    Flattens some json (y) to a string.
+    """
     out = {}
 
     def flatten(x, name=''):
@@ -12,9 +25,39 @@ def flatten_data(y):
                 i += 1
         else:
             out[name[:-1]] = x
-
+            
     flatten(y)
     return out
+
+def remove_none_vals(dictionary):
+    """
+    Removes all none type values from a dictionary of any depth. 
+    """
+    for k, v in dictionary.items():
+        if isinstance(v, list):
+            dictionary[k] = [i for i in v if i is not None]
+    return dictionary
+
+def retry_with_backoff(fn, retries=5, backoff_in_seconds=1):
+    """
+    Executes the retry with exponential backoff algorithm to avoid API call timeouts.
+    
+    Args:
+        fn (function): some function to retry
+        retries (int): number of retries before raising to caller
+        backoff_in_seconds (int): backoff time in seconds for which to calculate exponential sleep length
+    """
+    x = 0
+    while True:
+        try:
+            return fn()
+        except:
+            if x == retries:
+                raise
+            
+            sleep = (backoff_in_seconds * 2 ** x + random.uniform(0, 1))
+            time.sleep(sleep)
+            x += 1
 
 def topological_sort_grouped(G):
     """
@@ -40,30 +83,3 @@ def topological_sort_grouped(G):
                 if not indegree_map[child]:
                     new_zero_indegree.append(child)
         zero_indegree = new_zero_indegree
-        
-def chunks(lst, n):
-    """
-    Divides a lst into chunks of size n.
-    """
-    
-    for i in range(0, len(lst), n):
-        yield lst[i:i + n]
-        
-def retry_with_backoff(fn, retries=5, backoff_in_seconds=1):
-    x = 0
-    while True:
-        try:
-            return fn()
-        except:
-            if x == retries:
-                raise
-            
-            sleep = (backoff_in_seconds * 2 ** x + random.uniform(0, 1))
-            time.sleep(sleep)
-            x += 1
-            
-def remove_none_vals(dictionary):
-    for k, v in dictionary.items():
-        if isinstance(v, list):
-            dictionary[k] = [i for i in v if i is not None]
-    return dictionary

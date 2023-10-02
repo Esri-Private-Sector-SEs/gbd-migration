@@ -5,13 +5,14 @@ from arcgis.mapping.ogc import CSVLayer
 from datetime import datetime, date
 import sys
 import numpy as np
-import time, random
+import timeit
 
 import pandas as pd
 import uuid
 
 import networkx as nx
-from utils import flatten_data, topological_sort_grouped, chunks, retry_with_backoff, remove_none_vals
+
+from utils import utils
 
 def main():
     # Establish GIS connection
@@ -81,7 +82,7 @@ def main():
             # get related items (heavy resource cost)
             related_ids = []
             item_json = item.get_data(try_json=True)
-            flat_keys = flatten_data(item_json)
+            flat_keys = utils.flatten_data(item_json)
 
             for k, v in flat_keys.items():
                 if "itemId" in k:
@@ -108,7 +109,8 @@ def main():
             dict_list.append(d)
             del d
 
-    retry_with_backoff(fn=build_report)
+    generate_report = utils.retry_with_backoff(fn=build_report)
+    print(f"Report dataframe built in {timeit.timeit(generate_report)}.")
             
     report_df = pd.DataFrame(dict_list)    
     print("Report generated successfully.")
@@ -123,11 +125,11 @@ def main():
     for item in range(len(graph_view)):
         graph_data[graph_view.iloc[item]['Item ID']] = list(graph_view.iloc[item]['Related Items'])
 
-    graph_data = remove_none_vals(graph_data)
+    graph_data = utils.remove_none_vals(graph_data)
         
     user_graph = nx.DiGraph(graph_data)
     
-    roots = list(topological_sort_grouped(user_graph))[0]
+    roots = list(utils.topological_sort_grouped(user_graph))[0]
 
     for root in roots:
         x = str(uuid.uuid4())[:8]
