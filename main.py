@@ -15,13 +15,14 @@ import networkx as nx
 from utils import utils
 
 def main():
-    # Establish GIS connection
     
     """CONSTANTS"""
     GIS_URL = str(sys.argv[1])
     CLIENT_ID = str(sys.argv[2])
     CSV_ITEM_ID = str(sys.argv[3])
-            
+    GIS_USER = str(sys.argv[4])
+    
+    # Establish GIS connection        
     print("Connecting ...")
     gis = GIS(GIS_URL, client_id=CLIENT_ID)
     print(f"Connection successful with identity {gis.properties.user.username}")
@@ -35,7 +36,7 @@ def main():
 
     valid_items = []
 
-    me = gis.users.search(gis.properties.user.username)[0]
+    me = gis.users.search(GIS_USER)[0]
     my_items = me.items(max_items = 9999)
 
     for item in my_items:
