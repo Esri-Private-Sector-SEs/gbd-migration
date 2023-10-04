@@ -25,7 +25,7 @@ def main():
     # Establish GIS connection        
     print("Connecting ...")
     gis = GIS(GIS_URL, client_id=CLIENT_ID)
-    print(f"Connection successful with identity {gis.properties.user.username}")
+    print(f"Connection successful with identity {gis.properties.user.username}. This user will access the content of {GIS_USER}.")
     
         
     RELATIONSHIP_TYPES = frozenset(['Map2Service', 'WMA2Code',
