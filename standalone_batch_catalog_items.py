@@ -33,7 +33,7 @@ print('Start')
 # Define global variables
 MY_ORG = "home"  # Org to view content
 ORG_USER = "retail_transfer"  # Username
-ORG_PASSWORD = 'SE.transfer.2023'
+ORG_PASSWORD = '-------'
 ORG_URL = r"https://commteamretail.maps.arcgis.com/"
 CSV_ITEM_ID = "7da942c387ce40c7942aee822ed7348c"
 local_path = r'C:\temp\retail'
