@@ -21,6 +21,7 @@ import json
 import shutil
 import tempfile
 import time
+import csv
 
 from getpass import getpass
 
@@ -32,11 +33,11 @@ print('Start')
 
 # Define global variables
 MY_ORG = "home"  # Org to view content
-ORG_USER = "retail_transfer"  # Username
-ORG_PASSWORD = '-------'
-ORG_URL = r"https://commteamretail.maps.arcgis.com/"
-CSV_ITEM_ID = "7da942c387ce40c7942aee822ed7348c"
-local_path = r'C:\temp\retail'
+ORG_USER = "realestate_transfer"  # Username
+ORG_PASSWORD = '--------'
+ORG_URL = r"https://arcgis.com//"
+CSV_ITEM_ID = "79b5f4cdbaf7419596f421fb15a76e1f"
+local_path = r'C:\Users\john7126\OneDrive - Esri\Documents - Commercial - Solution Engineer Team\Solution Engineering Resources\Industry Org Migration\CGS Content\Content Reports\Real Estate'
 
 #______________________________________________________________
 INFO_PRODUCTS = ["Hub Page", "Web Mapping Application", "Dashboard", "Report Template", "StoryMap", "Form"]
@@ -49,6 +50,27 @@ RELATIONSHIP_TYPES = frozenset(['Map2Service', 'WMA2Code',
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', None)
+
+#Keep logs of when people are cataloged
+def update_reporting_log (csv_path, org, suser_name):
+    # Define the CSV file path
+    csv_filename = "{0}_all_users.csv".format(org)
+    csv_file_path = os.path.join(csv_path,csv_filename)
+
+    # Read the CSV file into a Pandas DataFrame
+    csv_df = pd.read_csv(csv_file_path)
+
+    # Update the values for "Report Generated" and "Last Reported"
+    report_generated_value = 'Yes'
+    last_reported_value = datetime.now().strftime("%m/%d/%Y %H:%M:%S")
+
+    # Update the DataFrame with the new values
+    csv_df.loc[csv_df['Username'] == suser_name, 'Report Complete'] = report_generated_value
+    csv_df.loc[csv_df['Username'] == suser_name, 'Last Reported'] = last_reported_value
+
+    # Save the updated DataFrame back to the CSV file
+    csv_df.to_csv(csv_file_path, index=False)
+    print("Logs for {0} were updated".format(suser_name))
 
 def flatten_data(y):
     out = {}
@@ -92,6 +114,19 @@ def topological_sort_grouped(G):
                 if not indegree_map[child]:
                     new_zero_indegree.append(child)
         zero_indegree = new_zero_indegree
+
+def tag_user(user_id):
+    epoch_time = int(time.time())
+    # Method 2: Search for a user by user ID
+    user_by_id = gis.users.get(row['User ID'])
+    if user_by_id:
+        print(f"User found by user ID: {user_by_id.username}")
+        user_by_id.tags.append('Cataloged')
+        user_by_id.tags.append('C:{0}'.format(epoch_time))
+        print(user_by_id.tags)
+    else:
+        print(f"No user found with the user ID: {user_id_to_search}")
+
 
 def chunks(lst, n):
     """
@@ -139,7 +174,7 @@ def report_to_csv(usern,reportdf,out_path):
 def user_content_report(uPD):
     # Create an empty DataFrame
     dataframes = {}
-    data = {'Name': [], 'Folder Count': [], 'Item Count': [],'Start Time':[], 'End Time': [],'Processing Time': []}
+    data = {'Name': [],'Username': [], "User ID": [], 'Folder Count': [], 'Item Count': [],'Start Time':[], 'End Time': [],'Processing Time': []}
     df = pd.DataFrame(data)
     for index, row in uPD.iterrows():
         nows = datetime.now()
@@ -167,7 +202,7 @@ def user_content_report(uPD):
 
         if len(my_items) > 0:
             # Add a new row to the DataFrame
-            new_row = {'Name': me.fullName, 'Folders': len(folders), 'Items': len(my_items),'Start Time':start}
+            new_row = {'Name': me.fullName, 'Username': me.username, "User ID": user.id, 'Folders': len(folders), 'Items': len(my_items),'Start Time':start}
             # Initialize the DataFrame if it's the first iteration
             if df.shape[0] == 0:
                 df = pd.DataFrame([new_row])
@@ -241,6 +276,7 @@ def user_content_report(uPD):
             sedelta = (nowe-nows)
             df.loc[last_index, 'End Time'] = end
             df.loc[last_index, 'Processing Time'] = sedelta
+            df.to_csv(os.path.join(local_path,'processed_last_iteration.csv'), index=False)
             print(df)
             print("Dataframe generated successfully for {}.".format(row['Username']))
 
@@ -294,6 +330,12 @@ def user_content_report(uPD):
             dataframes[row['Username'][:8]] = report
             report_to_csv(row['Username'],dataframes[row['Username'][:8]],local_path)
             print("Excel report generated successfully for {}.".format(row['Username']))
+            ####Update Log for future filtering
+            update_reporting_log(local_path, org_short_name, row["Username"])
+##            ####Tag users for future filtering
+##            me.tags.append('Cataloged') if 'Cataloged' not in my_list else None
+##            me.tags.append('C:{0}'.format(epoch_time))
+
     print(df)
     return dataframes
 #______________________________________________________________
@@ -306,6 +348,10 @@ gis = GIS(url=ORG_URL, username=ORG_USER, password=ORG_PASSWORD)
 print("Connection successful.")
 print("Logged into portal as: " + gis.properties.user.username)
 
+# Get the organization information
+org_info = gis.properties
+org_short_name = org_info['urlKey'] if 'urlKey' in org_info else ''
+print(org_short_name)
 
 # Get the template csv for the catalog structure
 #CSV_ITEM_ID = "87da97f9c4b144c8a01cf91949d9d2da"
