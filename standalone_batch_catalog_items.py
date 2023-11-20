@@ -1,5 +1,5 @@
-VERSION = "0.2"
-#This version of the script is meant to be run as a stand alone script and not via a notbook. 
+VERSION = "0.3"
+#This version of the script is meant to be run as a stand alon script and not via a notbook. 
 
 from arcgis.gis import GIS
 from arcgis.gis import Item
@@ -15,7 +15,6 @@ from itertools import islice
 import pandas as pd
 import tempfile
 
-
 import os
 import uuid
 import json
@@ -26,6 +25,7 @@ import csv
 
 from getpass import getpass
 
+
 import xlsxwriter
 import networkx as nx
 
@@ -35,7 +35,7 @@ print('Start')
 MY_ORG = "home"  # Org to view content
 ORG_USER = "realestate_transfer"  # Username
 ORG_PASSWORD = '--------'
-ORG_URL = r"https://arcgis.com//"
+ORG_URL = r"https://commre.maps.arcgis.com//"
 CSV_ITEM_ID = "79b5f4cdbaf7419596f421fb15a76e1f"
 local_path = r'C:\Users\john7126\OneDrive - Esri\Documents - Commercial - Solution Engineer Team\Solution Engineering Resources\Industry Org Migration\CGS Content\Content Reports\Real Estate'
 
@@ -171,13 +171,11 @@ def report_to_csv(usern,reportdf,out_path):
 
     writer.save()
 
-dict_list = []
-
-async def user_content_report(uPD):
+def user_content_report(uPD):
+    # Create an empty DataFrame
     dataframes = {}
     data = {'Name': [],'Username': [], "User ID": [], 'Folder Count': [], 'Item Count': [],'Start Time':[], 'End Time': [],'Processing Time': []}
     df = pd.DataFrame(data)
-
     for index, row in uPD.iterrows():
         nows = datetime.now()
         start = nows.strftime("%m/%d/%Y %H:%M:%S")
@@ -282,50 +280,53 @@ async def user_content_report(uPD):
             print(df)
             print("Dataframe generated successfully for {}.".format(row['Username']))
 
-    report = pd.DataFrame(dict_list)
-    report.to_csv(os.path.join(local_path,'last_iteration.csv'), index=False)
-    report['Project ID'] = np.empty((len(report), 0)).tolist()
-    print(report)
-    # Get the column headers (column names)
-    column_headers = report.columns
+            report = pd.DataFrame(dict_list)
+            report.to_csv(os.path.join(local_path,'last_iteration.csv'), index=False)
 
-    # Convert the column headers to a list if needed
-    column_headers_list = column_headers.tolist()
+            #Start HERE
+            report['Project ID'] = np.empty((len(report), 0)).tolist()
+            print(report)
+            # Get the column headers (column names)
+            column_headers = report.columns
 
-    print(column_headers)
-    print(column_headers_list)
-    
-    graph_view = report[['Item ID', 'Related Items']]
-    graph_view = graph_view.loc[graph_view['Related Items'] != '']
+            # Convert the column headers to a list if needed
+            column_headers_list = column_headers.tolist()
 
-    graph_data = {}
+            print(column_headers)
+            print(column_headers_list)
+            
+            graph_view = report[['Item ID', 'Related Items']]
+            graph_view = graph_view.loc[graph_view['Related Items'] != '']
 
-    for item in range(len(graph_view)):
-        graph_data[graph_view.iloc[item]['Item ID']] = list(graph_view.iloc[item]['Related Items'])
+            graph_data = {}
 
-    user_graph = nx.DiGraph(graph_data)
-
-    #print("Visual representation of user's item dependencies: ")
-    #nx.draw_networkx(user_graph)
-    print(user_graph)
-
-    if user_graph.number_of_nodes() > 0:
-
-        roots = list(topological_sort_grouped(user_graph))[0]
-
-        for root in roots:
-            x = str(uuid.uuid4())[:8]
-            # filter for root project
-            report.loc[report["Item ID"] == root, "Project ID"] = x
-            relates = report.loc[report['Item ID'] == root]["Related Items"].values[0]
-            for item in relates:
-                # condition where project ids have already been added 
-                report.loc[(report["Item ID"] == item) & (report["Project ID"].str.len() != 0), "Project ID"] = x + ", "
-                # condition where a project id does not already exists
-                report.loc[(report["Item ID"] == item) & (report["Project ID"].str.len() == 0), "Project ID"] = x
-
+            for item in range(len(graph_view)):
+                graph_data[graph_view.iloc[item]['Item ID']] = list(graph_view.iloc[item]['Related Items'])
         
-        #print(row['Username'][:8])
+            user_graph = nx.DiGraph(graph_data)
+
+            #print("Visual representation of user's item dependencies: ")
+            #nx.draw_networkx(user_graph)
+            print(user_graph)
+
+            if user_graph.number_of_nodes() > 0:
+
+            
+                roots = list(topological_sort_grouped(user_graph))[0]
+
+                for root in roots:
+                    x = str(uuid.uuid4())[:8]
+                    # filter for root project
+                    report.loc[report["Item ID"] == root, "Project ID"] = x
+                    relates = report.loc[report['Item ID'] == root]["Related Items"].values[0]
+                    for item in relates:
+                        # condition where project ids have already been added 
+                        report.loc[(report["Item ID"] == item) & (report["Project ID"].str.len() != 0), "Project ID"] = x + ", "
+                        # condition where a project id does not already exists
+                        report.loc[(report["Item ID"] == item) & (report["Project ID"].str.len() == 0), "Project ID"] = x
+
+                
+                #print(row['Username'][:8])
 
             # Store the DataFrame in the dictionary with the row['Username'][:8] string as the key
             dataframes[row['Username'][:8]] = report
@@ -341,39 +342,32 @@ async def user_content_report(uPD):
     return dataframes
 #______________________________________________________________
 
-# Filtering out users that have already been cataloged 
-#tocat_df = user_data[user_data['Tag'].apply(lambda x: 'cataloged' not in x)]
-#tocat_df = user_data[user_data['Username'].apply(lambda x: 'robe8665@esri.com_manucomm' in x)]
-#tocat_df
-
-if __name__ == "main":
-    
-    # Establish GIS connection
-    #origin_pass = getpass(prompt=f"Enter the password for user {ORIGIN_TRANSFER_USER}: ")
-    print("Connecting ...")
-    #gis =GIS("home", expiration=9999)
-    gis = GIS(url=ORG_URL, username=ORG_USER, password=ORG_PASSWORD)
-    print("Connection successful.")
-    print("Logged into portal as: " + gis.properties.user.username)
+# Establish GIS connection
+#origin_pass = getpass(prompt=f"Enter the password for user {ORIGIN_TRANSFER_USER}: ")
+print("Connecting ...")
+#gis =GIS("home", expiration=9999)
+gis = GIS(url=ORG_URL, username=ORG_USER, password=ORG_PASSWORD)
+print("Connection successful.")
+print("Logged into portal as: " + gis.properties.user.username)
 
 # Get the organization information
 org_info = gis.properties
 org_short_name = org_info['urlKey'] if 'urlKey' in org_info else ''
 print(org_short_name)
 
-    # Get the template csv for the catalog structure
-    #CSV_ITEM_ID = "87da97f9c4b144c8a01cf91949d9d2da"
-    csvItem = gis.content.get(CSV_ITEM_ID)
-    catalog = CSVLayer(csvItem).df
+# Get the template csv for the catalog structure
+#CSV_ITEM_ID = "87da97f9c4b144c8a01cf91949d9d2da"
+csvItem = gis.content.get(CSV_ITEM_ID)
+catalog = CSVLayer(csvItem).df
 
-    # Get a list of all users in the organization
-    users = gis.users.search(max_users=10000)
+# Get a list of all users in the organization
+users = gis.users.search(max_users=10000)
 
-    # Create an empty Pandas DataFrame to store user details
-    user_data = pd.DataFrame(columns=['Processed','Username', 'Full Name', 'Email', 'User Type', 'Role', 'Description', 'Provider', 'Tag'])
+# Create an empty Pandas DataFrame to store user details
+user_data = pd.DataFrame(columns=['Processed','Username', 'Full Name', 'Email', 'User Type', 'Role', 'Description', 'Provider', 'Tag'])
 
-    # Iterate through the users and populate the DataFrame
-    for user in users:
+# Iterate through the users and populate the DataFrame
+for user in users:
     user_data = user_data.append({
         'Processed': time.time(),
         'Username': user.username,
@@ -386,9 +380,15 @@ print(org_short_name)
         'Tag': user.tags
     }, ignore_index=True)
 
-    user_data
-        
-    r= user_content_report(user_data)
-    r
-    print("Script Complete")
+user_data
+
+# Filtering out users that have already been cataloged 
+#tocat_df = user_data[user_data['Tag'].apply(lambda x: 'cataloged' not in x)]
+#tocat_df = user_data[user_data['Username'].apply(lambda x: 'robe8665@esri.com_manucomm' in x)]
+#tocat_df
+
+
+r= user_content_report(user_data)
+r
+print("Script Complete")
 
