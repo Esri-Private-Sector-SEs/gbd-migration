@@ -1,5 +1,5 @@
 VERSION = "0.2"
-#This version of the script is meant to be run as a stand alon script and not via a notbook. 
+#This version of the script is meant to be run as a stand alone script and not via a notbook. 
 
 from arcgis.gis import GIS
 from arcgis.gis import Item
@@ -15,15 +15,17 @@ from itertools import islice
 import pandas as pd
 import tempfile
 
+
 import os
 import uuid
 import json
 import shutil
 import tempfile
 import time
+import asyncio
+import concurrent.futures
 
 from getpass import getpass
-
 
 import xlsxwriter
 import networkx as nx
@@ -136,11 +138,13 @@ def report_to_csv(usern,reportdf,out_path):
 
     writer.save()
 
-def user_content_report(uPD):
-    # Create an empty DataFrame
+dict_list = []
+
+async def user_content_report(uPD):
     dataframes = {}
-    data = {'Name': [], 'Folder Count': [], 'Item Count': [],'Start Time':[], 'End Time': [],'Processing Time': []}
+    data = {'Name': [],'Username': [], "User ID": [], 'Folder Count': [], 'Item Count': [],'Start Time':[], 'End Time': [],'Processing Time': []}
     df = pd.DataFrame(data)
+
     for index, row in uPD.iterrows():
         nows = datetime.now()
         start = nows.strftime("%m/%d/%Y %H:%M:%S")
@@ -150,176 +154,176 @@ def user_content_report(uPD):
         my_items = me.items(max_items = 99999)
 
         folders = me.folders
+    
+    def process_item(item):
+        # format item sharing data
+        item_share = ""
+        if item.shared_with['everyone']:
+            item_share += "Shared with everyone"
+        if item.shared_with['org']:
+            item_share += "Shared with org"
         
-
-        if len(folders) > 0:
-            for folder in folders:
-                folder_items = me.items(folder=folder['title'], max_items=9999)
-                for item in folder_items:
-                    if item.type in INFO_PRODUCTS:
-                        my_items.append(item)
-
-        ##Filter out known issues
-        #my_items['tags']
-
-        ##Run through items to populate the catalog
-        dict_list = []
-
-        if len(my_items) > 0:
-            # Add a new row to the DataFrame
-            new_row = {'Name': me.fullName, 'Folders': len(folders), 'Items': len(my_items),'Start Time':start}
-            # Initialize the DataFrame if it's the first iteration
-            if df.shape[0] == 0:
-                df = pd.DataFrame([new_row])
+        # delete protection string
+        if item.protect:
+            deletion_status = "True"
+        else:
+            deletion_status = "False"
+        
+        # check if its xferred
+        if item.id in catalog['source_id'].unique():
+            xfer = "True"
+        else:
+            xfer = "False"
+        
+        # last edit string
+        last_edit = datetime.fromtimestamp(item.modified/1000).__str__()
+        
+        # get related items (heavy resource cost)
+        related_ids = []
+        item_json = item.get_data(try_json=True)
+        flat_keys = flatten_data(item_json)
+        
+        for k, v in flat_keys.items():
+            if "itemId" in k:
+                if not any(i in v for i in '!@#$%^&*()_-=+/,.<>[]{;}:'):
+                    related_ids.append(v)
+        
+        for fldr in folders:
+            if fldr['id']==item.ownerFolder:
+                fldr_name =fldr['title']
             else:
-                # Append rows to the DataFrame from the second iteration onwards
-                df = df.append(new_row, ignore_index=True)
-            print(df)
-            last_index = df.index[-1]
-            
-            print('dictionary started')
-            for chunk in chunks(my_items, 100):
-                for item in my_items:
-
-                    # format item sharing data
-                    item_share = ""
-                    if item.shared_with['everyone']:
-                        item_share += "Shared with everyone"
-                    if item.shared_with['org']:
-                        item_share += "Shared with org"
-
-                    # delete protection string
-                    if item.protect:
-                        deletion_status = "True"
-                    else:
-                        deletion_status = "False"
-
-                    # check if its xferred
-                    if item.id in catalog['source_id'].unique():
-                        xfer = "True"
-                    else:
-                        xfer = "False"
-
-                    # last edit string
-                    last_edit = datetime.fromtimestamp(item.modified/1000).__str__()
-
-                    # get related items (heavy resource cost)
-                    related_ids = []
-                    item_json = item.get_data(try_json=True)
-                    flat_keys = flatten_data(item_json)
-
-                    #for k, v in flat_keys.items():
-                    #    if "itemId" in k:
-                    #        related_ids.append(v)
-                    for k, v in flat_keys.items():
-                        if "itemId" in k:
-                            if not any(i in v for i in '!@#$%^&*()_-=+/,.<>[]{;}:'):
-                                related_ids.append(v)
-
-                    for fldr in folders:
-                        if fldr['id']==item.ownerFolder:
-                            fldr_name =fldr['title']
-                        else:
-                            fldr_name = 'root'
-
-                    related_ids = set(related_ids)
-                    if len(related_ids) == 0:
-                        related_ids = ""
-
-                    # loop and generate these dictionaries, store in a list
-                    d = {"Item Name": item.title, "Author": item.owner, "Sharing": item_share, "Description": item.description, "Item ID": item.id, "Groups": item.shared_with['groups'],
-                                        "Date Updated": last_edit, "URL": item.homepage, "Type": item.type, "Folder": fldr_name, "Tags": item.tags, "Categories": item.categories, 
-                                        "Content Status": item.content_status, "Related Items": related_ids, "Delete Protection": deletion_status, "Transfer Status": xfer}
-
-                    dict_list.append(d)
-                    del d
-                print('Chunk run')
-            print('dictionary done')
-            #print(dict_list)
-            nowe = datetime.now()
-            end = nowe.strftime("%m/%d/%Y %H:%M:%S")
-            sedelta = (nowe-nows)
-            df.loc[last_index, 'End Time'] = end
-            df.loc[last_index, 'Processing Time'] = sedelta
-            print(df)
-            print("Dataframe generated successfully for {}.".format(row['Username']))
-
-            report = pd.DataFrame(dict_list)
-            report.to_csv(os.path.join(local_path,'last_iteration.csv'), index=False)
-            report['Project ID'] = np.empty((len(report), 0)).tolist()
-            print(report)
-            # Get the column headers (column names)
-            column_headers = report.columns
-
-            # Convert the column headers to a list if needed
-            column_headers_list = column_headers.tolist()
-
-            print(column_headers)
-            print(column_headers_list)
-            
-            graph_view = report[['Item ID', 'Related Items']]
-            graph_view = graph_view.loc[graph_view['Related Items'] != '']
-
-            graph_data = {}
-
-            for item in range(len(graph_view)):
-                graph_data[graph_view.iloc[item]['Item ID']] = list(graph_view.iloc[item]['Related Items'])
+                fldr_name = 'root'
         
-            user_graph = nx.DiGraph(graph_data)
+        related_ids = set(related_ids)
+        if len(related_ids) == 0:
+            related_ids = ""
+        
+        d = {
+            "Item Name": item.title,
+            "Author": item.owner,
+            "Sharing": item_share,
+            "Description": item.description,
+            "Item ID": item.id,
+            "Groups": item.shared_with['groups'],
+            "Date Updated": last_edit,
+            "URL": item.homepage,
+            "Type": item.type,
+            "Folder": fldr_name,
+            "Tags": item.tags,
+            "Categories": item.categories,
+            "Content Status": item.content_status,
+            "Related Items": related_ids,
+            "Delete Protection": deletion_status,
+            "Transfer Status": xfer
+        }
+        
+        return d
+    
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = []
+        
+        for chunk in chunks(my_items, 100):
+            for item in chunk:
+                future = executor.submit(process_item, item)
+                futures.append(future)
+        
+        for future in concurrent.futures.as_completed(futures):
+            dict_list.append(future.result())
+    
+    last_index = df.index[-1]
+                        
+    print('dictionary done')
+    #print(dict_list)
+    nowe = datetime.now()
+    end = nowe.strftime("%m/%d/%Y %H:%M:%S")
+    sedelta = (nowe-nows)
+    df.loc[last_index, 'End Time'] = end
+    df.loc[last_index, 'Processing Time'] = sedelta
+    print(df)
+    print("Dataframe generated successfully for {}.".format(row['Username']))
 
-            #print("Visual representation of user's item dependencies: ")
-            #nx.draw_networkx(user_graph)
-            print(user_graph)
+    report = pd.DataFrame(dict_list)
+    report.to_csv(os.path.join(local_path,'last_iteration.csv'), index=False)
+    report['Project ID'] = np.empty((len(report), 0)).tolist()
+    print(report)
+    # Get the column headers (column names)
+    column_headers = report.columns
 
-            if user_graph.number_of_nodes() > 0:
+    # Convert the column headers to a list if needed
+    column_headers_list = column_headers.tolist()
 
-            
-                roots = list(topological_sort_grouped(user_graph))[0]
+    print(column_headers)
+    print(column_headers_list)
+    
+    graph_view = report[['Item ID', 'Related Items']]
+    graph_view = graph_view.loc[graph_view['Related Items'] != '']
 
-                for root in roots:
-                    x = str(uuid.uuid4())[:8]
-                    # filter for root project
-                    report.loc[report["Item ID"] == root, "Project ID"] = x
-                    relates = report.loc[report['Item ID'] == root]["Related Items"].values[0]
-                    for item in relates:
-                        # condition where project ids have already been added 
-                        report.loc[(report["Item ID"] == item) & (report["Project ID"].str.len() != 0), "Project ID"] = x + ", "
-                        # condition where a project id does not already exists
-                        report.loc[(report["Item ID"] == item) & (report["Project ID"].str.len() == 0), "Project ID"] = x
+    graph_data = {}
 
-                
-                #print(row['Username'][:8])
+    for item in range(len(graph_view)):
+        graph_data[graph_view.iloc[item]['Item ID']] = list(graph_view.iloc[item]['Related Items'])
 
-            # Store the DataFrame in the dictionary with the row['Username'][:8] string as the key
-            dataframes[row['Username'][:8]] = report
-            report_to_csv(row['Username'],dataframes[row['Username'][:8]],local_path)
-            print("Excel report generated successfully for {}.".format(row['Username']))
+    user_graph = nx.DiGraph(graph_data)
+
+    #print("Visual representation of user's item dependencies: ")
+    #nx.draw_networkx(user_graph)
+    print(user_graph)
+
+    if user_graph.number_of_nodes() > 0:
+
+        roots = list(topological_sort_grouped(user_graph))[0]
+
+        for root in roots:
+            x = str(uuid.uuid4())[:8]
+            # filter for root project
+            report.loc[report["Item ID"] == root, "Project ID"] = x
+            relates = report.loc[report['Item ID'] == root]["Related Items"].values[0]
+            for item in relates:
+                # condition where project ids have already been added 
+                report.loc[(report["Item ID"] == item) & (report["Project ID"].str.len() != 0), "Project ID"] = x + ", "
+                # condition where a project id does not already exists
+                report.loc[(report["Item ID"] == item) & (report["Project ID"].str.len() == 0), "Project ID"] = x
+
+        
+        #print(row['Username'][:8])
+
+    # Store the DataFrame in the dictionary with the row['Username'][:8] string as the key
+    dataframes[row['Username'][:8]] = report
+    report_to_csv(row['Username'],dataframes[row['Username'][:8]],local_path)
+    print("Excel report generated successfully for {}.".format(row['Username']))
     print(df)
     return dataframes
 #______________________________________________________________
 
-# Establish GIS connection
-#origin_pass = getpass(prompt=f"Enter the password for user {ORIGIN_TRANSFER_USER}: ")
-print("Connecting ...")
-#gis =GIS("home", expiration=9999)
-gis = GIS(url=ORG_URL, username=ORG_USER, password=ORG_PASSWORD)
-print("Connection successful.")
-print("Logged into portal as: " + gis.properties.user.username)
+# Filtering out users that have already been cataloged 
+#tocat_df = user_data[user_data['Tag'].apply(lambda x: 'cataloged' not in x)]
+#tocat_df = user_data[user_data['Username'].apply(lambda x: 'robe8665@esri.com_manucomm' in x)]
+#tocat_df
+
+if __name__ == "main":
+    
+    # Establish GIS connection
+    #origin_pass = getpass(prompt=f"Enter the password for user {ORIGIN_TRANSFER_USER}: ")
+    print("Connecting ...")
+    #gis =GIS("home", expiration=9999)
+    gis = GIS(url=ORG_URL, username=ORG_USER, password=ORG_PASSWORD)
+    print("Connection successful.")
+    print("Logged into portal as: " + gis.properties.user.username)
 
 
-# Get the template csv for the catalog structure
-#CSV_ITEM_ID = "87da97f9c4b144c8a01cf91949d9d2da"
-csvItem = gis.content.get(CSV_ITEM_ID)
-catalog = CSVLayer(csvItem).df
+    # Get the template csv for the catalog structure
+    #CSV_ITEM_ID = "87da97f9c4b144c8a01cf91949d9d2da"
+    csvItem = gis.content.get(CSV_ITEM_ID)
+    catalog = CSVLayer(csvItem).df
 
-# Get a list of all users in the organization
-users = gis.users.search(max_users=10000)
+    # Get a list of all users in the organization
+    users = gis.users.search(max_users=10000)
 
-# Create an empty Pandas DataFrame to store user details
-user_data = pd.DataFrame(columns=['Processed','Username', 'Full Name', 'Email', 'User Type', 'Role', 'Description', 'Provider', 'Tag'])
+    # Create an empty Pandas DataFrame to store user details
+    user_data = pd.DataFrame(columns=['Processed','Username', 'Full Name', 'Email', 'User Type', 'Role', 'Description', 'Provider', 'Tag'])
 
-# Iterate through the users and populate the DataFrame
-for user in users:
+    # Iterate through the users and populate the DataFrame
+    for user in users:
     user_data = user_data.append({
         'Processed': time.time(),
         'Username': user.username,
@@ -332,15 +336,9 @@ for user in users:
         'Tag': user.tags
     }, ignore_index=True)
 
-user_data
-
-# Filtering out users that have already been cataloged 
-#tocat_df = user_data[user_data['Tag'].apply(lambda x: 'cataloged' not in x)]
-#tocat_df = user_data[user_data['Username'].apply(lambda x: 'robe8665@esri.com_manucomm' in x)]
-#tocat_df
-
-
-r= user_content_report(user_data)
-r
-print("Script Complete")
+    user_data
+        
+    r= user_content_report(user_data)
+    r
+    print("Script Complete")
 
