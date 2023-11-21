@@ -222,10 +222,9 @@ async def user_content_report(uPD):
     with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = []
         
-        for chunk in chunks(my_items, 100):
-            for item in chunk:
-                future = executor.submit(process_item, item)
-                futures.append(future)
+        for item in my_items:
+            future = executor.submit(process_item, item)
+            futures.append(future)
         
         for future in concurrent.futures.as_completed(futures):
             dict_list.append(future.result())
