@@ -36,7 +36,7 @@ This notebook is used to do AGOL to AGOL transfers, designed to handle one item 
 
  ## Content Report Notebook
 
- This notebook is a companion to the content migration tool, creating an inventory of a user's content. See the documentation at the top of the notebook for more information on how to use it. 
+ This notebook is a companion to the content migration tool, creating an inventory of a user's content. This is typically run beforehand and you will be given a copy of the report. But if you would like to build this on your own (compute time may take a while): 
 
  ### Installation
   1. Download the latest version from Github.
