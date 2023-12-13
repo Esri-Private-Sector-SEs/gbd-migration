@@ -30,12 +30,20 @@ from getpass import getpass
 import xlsxwriter
 import networkx as nx
 
-print('Start')
+
+
+#---------------------------------------------------------------------------------------------#
+# Set start time
+s_start_time = time.time()
+# Convert start time to a readable formats
+s_start_time_readable = time.strftime("%m/%d/%Y %H:%M:%S", time.localtime(s_start_time))
+#---------------------------------------------------------------------------------------------#
+print('Start {}'.format(s_start_time_readable))
 
 # Define global variables
 MY_ORG = "home"  # Org to view content
 ORG_USER = "retail_transfer"  # Username
-ORG_PASSWORD = '-------'
+ORG_PASSWORD = 'SE.transfer.2023'
 ORG_URL = r"https://commteamretail.maps.arcgis.com/"
 CSV_ITEM_ID = "7da942c387ce40c7942aee822ed7348c"
 local_path = r'C:\temp\retail'
@@ -51,6 +59,7 @@ RELATIONSHIP_TYPES = frozenset(['Map2Service', 'WMA2Code',
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', None)
+
 
 def update_reporting_log (csv_path, org, suser_name):
     # Define the CSV file path
@@ -151,6 +160,7 @@ def report_to_csv(usern,reportdf,out_path):
     writer.save()
 
 def process_item(item, folders):
+
     # format item sharing data
     item_share = ""
     if item.shared_with['everyone']:
@@ -192,6 +202,13 @@ def process_item(item, folders):
     related_ids = set(related_ids)
     if len(related_ids) == 0:
         related_ids = ""
+
+    #---------------------------------------------------------------------------------------------#
+    # Set start time
+    d_start_time = time.time()
+    # Convert start time to a readable format
+    d_start_time_readable = time.strftime("%m/%d/%Y %H:%M:%S", time.localtime(d_start_time))
+    #---------------------------------------------------------------------------------------------#
     
     d = {
         "Item Name": item.title,
@@ -211,7 +228,30 @@ def process_item(item, folders):
         "Delete Protection": deletion_status,
         "Transfer Status": xfer
     }
-    
+    print(d)
+    #---------------------------------------------------------------------------------------------#
+    # Set end time
+    d_end_time = time.time()
+    # Convert end time to a readable format
+    d_end_time_readable = time.strftime("%m/%d/%Y %H:%M:%S", time.localtime(d_end_time))
+
+    # Calculate total time
+    d_elapsed_time = d_end_time - d_start_time
+
+    # Calculate days, hours, minutes, and seconds
+    days, remainder = divmod(d_elapsed_time, 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    # Format the total time
+    formatted_elapsed_time = "{:.0f} days, {:.0f} hours, {:.0f} minutes, {:.2f} seconds".format(days, hours, minutes, seconds)
+
+    print("Item(s) for iteration took {}.".format(formatted_elapsed_time))
+    #print(dict_list)
+    nowe = datetime.now()
+    end = nowe.strftime("%m/%d/%Y %H:%M:%S")
+    #---------------------------------------------------------------------------------------------#
+
     return d
 
 def user_content_report(uPD):
@@ -221,11 +261,16 @@ def user_content_report(uPD):
     data = {'Name': [],'Username': [], "User ID": [], 'Folder Count': [], 'Item Count': [],'Start Time':[], 'End Time': [],'Processing Time': []}
     df = pd.DataFrame(data)
     for index, row in uPD.iterrows():
-        nows = datetime.now()
-        start = nows.strftime("%m/%d/%Y %H:%M:%S")
+        #---------------------------------------------------------------------------------------------#
+        # Set start time
+        itm_start_time = time.time()
+        # Convert start time to a readable format
+        start_time_readable = time.strftime("%m/%d/%Y %H:%M:%S", time.localtime(itm_start_time))
+
+        print(start_time_readable)
+        #---------------------------------------------------------------------------------------------#
         me = gis.users.search(row['Username'])[0]
         print(me)
-        print(me.idpUsername)
         my_items = me.items(max_items = 99999)
 
         folders = me.folders
@@ -238,10 +283,11 @@ def user_content_report(uPD):
                         my_items.append(item)
     
         dict_list = []
+        print("dictionary started")
         
         if len(my_items) > 0:
             # Add a new row to the DataFrame
-            new_row = {'Name': me.fullName, 'Username': me.username, "User ID": user.id, 'Folders': len(folders), 'Items': len(my_items),'Start Time':start}
+            new_row = {'Name': me.fullName, 'Username': me.username, "User ID": user.id, 'Folders': len(folders), 'Items': len(my_items),'Start Time':start_time_readable}
             # Initialize the DataFrame if it's the first iteration
             if df.shape[0] == 0:
                 df = pd.DataFrame([new_row])
@@ -251,7 +297,6 @@ def user_content_report(uPD):
             print(df)
             last_index = df.index[-1]
 
-            print("dictionary started")
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 futures = []
                 
@@ -263,12 +308,47 @@ def user_content_report(uPD):
                     dict_list.append(future.result())
                             
         print('dictionary done')
+        #---------------------------------------------------------------------------------------------#
+        # Set end time
+        itm_end_time = time.time()
+        # Convert end time to a readable format
+        end_time_readable = time.strftime("%m/%d/%Y %H:%M:%S", time.localtime(itm_end_time))
+    
+        # Calculate total time
+        elapsed_time = itm_end_time - itm_start_time
+
+        # Calculate days, hours, minutes, and seconds
+        days, remainder = divmod(elapsed_time, 86400)
+        hours, remainder = divmod(remainder, 3600)
+        minutes, seconds = divmod(remainder, 60)
+
+        # Format the total time
+        formatted_elapsed_time = "{:.0f} days, {:.0f} hours, {:.0f} minutes, {:.2f} seconds".format(days, hours, minutes, seconds)
+
+        print("Item(s) for iteration took {}.".format(formatted_elapsed_time))
+
+        # Set intermediate end time
+        s_end_time = time.time()
+        # Calculate total time
+        i_elapsed_time = s_end_time - s_start_time
+
+        # Calculate days, hours, minutes, and seconds
+        days, remainder = divmod(i_elapsed_time, 86400)
+        hours, remainder = divmod(remainder, 3600)
+        minutes, seconds = divmod(remainder, 60)
+
+        # Format the total time
+        i_formatted_elapsed_time = "{:.0f} days, {:.0f} hours, {:.0f} minutes, {:.2f} seconds".format(days, hours, minutes, seconds)
+        
+        print("Total time up to {} .".format(i_formatted_elapsed_time))
+        
         #print(dict_list)
         nowe = datetime.now()
         end = nowe.strftime("%m/%d/%Y %H:%M:%S")
-        sedelta = (nowe-nows)
-        df.loc[last_index, 'End Time'] = end
-        df.loc[last_index, 'Processing Time'] = sedelta
+        #---------------------------------------------------------------------------------------------#
+
+        df.loc[last_index, 'End Time'] = end_time_readable
+        df.loc[last_index, 'Processing Time'] = formatted_elapsed_time
         print(df)
         print("Dataframe generated successfully for {}.".format(row['Username']))
 
@@ -284,7 +364,12 @@ def user_content_report(uPD):
 
         print(column_headers)
         print(column_headers_list)
-        
+        #---------------------------------------------------------------------------------------------#
+        # Set start time
+        graph_start_time = time.time()
+        # Convert end time to a readable format
+        graph_start_time_readable = time.strftime("%m/%d/%Y %H:%M:%S", time.localtime(graph_start_time))
+        #---------------------------------------------------------------------------------------------#
         graph_view = report[['Item ID', 'Related Items']]
         graph_view = graph_view.loc[graph_view['Related Items'] != '']
 
@@ -316,7 +401,25 @@ def user_content_report(uPD):
 
             
             #print(row['Username'][:8])
+        #---------------------------------------------------------------------------------------------#
+        graph_end_time = time.time()
+        # Convert end time to a readable format
+        graph_end_time_readable = time.strftime("%m/%d/%Y %H:%M:%S", time.localtime(graph_end_time))
+        # Calculate total time
+        total_time = graph_end_time - graph_start_time
+        # Calculate days, hours, minutes, and seconds
+        days, remainder = divmod(total_time, 86400)
+        hours, remainder = divmod(remainder, 3600)
+        minutes, seconds = divmod(remainder, 60)
 
+        # Format the total time
+        formatted_total_time = "{:.0f} days, {:.0f} hours, {:.0f} minutes, {:.2f} seconds".format(days, hours, minutes, seconds)
+
+        #print(row['Username'][:8])
+        #print(f"Start time: {start_time}")
+        #print(f"End time: {end_time}")
+        print(f"Total time: {formatted_total_time}")
+        #---------------------------------------------------------------------------------------------#
         # Store the DataFrame in the dictionary with the row['Username'][:8] string as the key
         dataframes[row['Username'][:8]] = report
         report_to_csv(row['Username'],dataframes[row['Username'][:8]],local_path)
@@ -366,7 +469,14 @@ for user in users:
 
 user_data
 
-r= user_content_report(user_data)
+# Filtering out users that have already been cataloged 
+#tocat_df = user_data[user_data['Tag'].apply(lambda x: 'cataloged' not in x)]
+tocat_df = user_data[user_data['Username'].apply(lambda x: 'emil8950@esri.com_commteamretail' in x)]
+tocat_df
+
+
+#r= user_content_report(user_data)
+r= user_content_report(tocat_df)
 r
 print("Script Complete")
 
